@@ -58,6 +58,9 @@
 
 ;; config ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define features-funcs? (-> any/c any/c))
+(define features? (listof (cons/c string? features-funcs?)))
+
 (provide
  config?
  (contract-out
@@ -65,17 +68,27 @@
                     [#:seed (integer-in 0 (sub1 (expt 2 31)))
                      #:tests exact-positive-integer?
                      #:size (-> exact-positive-integer? exact-nonnegative-integer?)
-                     #:deadline (>=/c 0)]
+                     #:deadline (>=/c 0)
+                     #:prop-run-start real?
+                     #:tyche boolean?
+                     #:features features?
+                     ]
                     config?)]))
 
-(struct config (seed tests size deadline))
+(struct config (seed tests size deadline prop-run-start tyche features))
 
 (define (make-config #:seed [seed (make-random-seed)]
                      #:tests [tests 100]
                      #:size [size (lambda (n)
                                     (expt (sub1 n) 2))]
-                     #:deadline [deadline (+ (current-inexact-milliseconds) (* 60 1000))])
-  (config seed tests size deadline))
+                     #:deadline [deadline (+ (current-inexact-milliseconds) (* 60 1000))]
+                     #:prop-run-start [run-start (current-inexact-milliseconds)]
+                     #:tyche [tyche #f]
+                     #:features [features (list)]
+                     )
+  (config seed tests size deadline run-start tyche features))
+
+(define tyche-port (open-output-file "tyche-log.json" #:exists 'truncate))
 
 (module+ private
   (provide (struct-out config)))
@@ -107,23 +120,44 @@
   (when (and s labels)
     (hash-update! labels s add1 0)))
 
+(define (print-features features rep)
+  (match features 
+    ['() ""]
+    [(cons (cons name f) '()) (format "\"~a\":~a" name (f rep))]
+    [(cons (cons name f) t) (string-append (format "\"~a\":~a, " name (f rep)) (print-features t rep))]))
+
+(define (tyche-log p-name prop-run-start run-total status rep features)
+  (if status
+    (fprintf tyche-port  
+            "{\"type\":\"test_case\", \"property\": ~v, \"run_start\":~v, \"status\":\"passed\", \"status_reason\": \"\", \"representation\":\"~v\", \"arguments\":{}, \"how_generated\":\"\", \"timing\":{\"time\":~v}, \"metadata\":{}, \"coverage\":{}, \"features\":{~a}}\n" 
+            p-name prop-run-start rep run-total (print-features features rep))
+    (fprintf tyche-port
+              "{\"type\":\"test_case\", \"property\":~v, \"run_start\":~v, \"status\":\"failed\", \"status_reason\": \"\", \"representation\":\"~v\", \"arguments\":{}, \"how_generated\":\"\", \"timing\":{\"time\":~v}, \"metadata\":{}, \"coverage\":{}, \"features\":{~a}}\n" 
+            p-name prop-run-start rep run-total (print-features features rep))))
+
 (define (check c p)
   (define caller-rng (current-pseudo-random-generator))
   (define rng (make-pseudo-random-generator))
   (parameterize ([current-labels (make-hash)]
                  [current-pseudo-random-generator rng])
-    (match-define (config seed tests size deadline) c)
-    (match-define (prop _name _arg-ids g f) p)
+    (match-define (config seed tests size deadline prop-run-start tyche features) c)
+    (match-define (prop name _arg-ids g f) p)
 
     (define exn? #f)
     (define (pass? args)
-      (with-handlers ([(lambda (_) #t)
+      (let-values 
+        ([(run-start status run-end) 
+            (values (current-inexact-milliseconds)
+                    (with-handlers ([(lambda (_) #t)
                        (lambda (the-exn)
                          (begin0 #f
                            (set! exn? the-exn)))])
-        (parameterize ([current-pseudo-random-generator caller-rng])
-          (apply f args))))
-
+                      (parameterize ([current-pseudo-random-generator caller-rng])
+                      (apply f args))) 
+                    (current-inexact-milliseconds))])
+        (if tyche
+          (begin (tyche-log name prop-run-start (/ (- run-end run-start) 1000) status args features) status)
+          (begin (when (file-exists? "tyche-log.json") (delete-file "tyche-log.json")) status))))
     (define (descend-shrinks trees last-failing-value)
       (cond
         [(stream-empty? trees) last-failing-value]
