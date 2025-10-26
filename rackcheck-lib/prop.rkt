@@ -5,7 +5,9 @@
          racket/contract/base
          racket/match
          racket/random
+         racket/format
          racket/stream
+         json
          "gen/syntax.rkt"
          (submod "gen/shrink-tree.rkt" private))
 
@@ -121,19 +123,29 @@
     (hash-update! labels s add1 0)))
 
 (define (print-features features rep)
-  (match features 
-    ['() ""]
-    [(cons (cons name f) '()) (format "\"~a\":~a" name (f rep))]
-    [(cons (cons name f) t) (string-append (format "\"~a\":~a, " name (f rep)) (print-features t rep))]))
+  (for/hasheq ([pair features])
+    (match pair
+      [(cons name f)
+       (values (string->symbol name) (apply f rep))])))
 
 (define (tyche-log p-name prop-run-start run-total status rep features)
-  (if status
-    (fprintf tyche-port  
-            "{\"type\":\"test_case\", \"property\": ~v, \"run_start\":~v, \"status\":\"passed\", \"status_reason\": \"\", \"representation\":\"~v\", \"arguments\":{}, \"how_generated\":\"\", \"timing\":{\"time\":~v}, \"metadata\":{}, \"coverage\":{}, \"features\":{~a}}\n" 
-            p-name prop-run-start rep run-total (print-features features rep))
-    (fprintf tyche-port
-              "{\"type\":\"test_case\", \"property\":~v, \"run_start\":~v, \"status\":\"failed\", \"status_reason\": \"\", \"representation\":\"~v\", \"arguments\":{}, \"how_generated\":\"\", \"timing\":{\"time\":~v}, \"metadata\":{}, \"coverage\":{}, \"features\":{~a}}\n" 
-            p-name prop-run-start rep run-total (print-features features rep))))
+  (define tyche-args
+    (hasheq
+     'type "test_case"
+     'property (~v p-name)
+     'run_start prop-run-start
+     'status (if status "passed" "failed")
+     'status_reason ""
+     'representation (~v rep)
+     'arguments (hasheq)
+     'how_generated ""
+     'timing (hasheq 'time run-total)
+     'metadata (hasheq)
+     'coverage (hasheq)
+     'features (print-features features rep))) 
+  (write-json tyche-args tyche-port)
+  (newline tyche-port))
+
 
 (define (check c p)
   (define caller-rng (current-pseudo-random-generator))
@@ -142,9 +154,10 @@
                  [current-pseudo-random-generator rng])
     (match-define (config seed tests size deadline prop-run-start tyche features) c)
     (match-define (prop name _arg-ids g f) p)
+    (if not tyche (when (file-exists? "tyche-log.json") (delete-file "tyche-log.json")))
 
     (define exn? #f)
-    (define (pass? args)
+    (define (pass? args gen-start)
       (let-values 
         ([(run-start status run-end) 
             (values (current-inexact-milliseconds)
@@ -156,15 +169,15 @@
                       (apply f args))) 
                     (current-inexact-milliseconds))])
         (if tyche
-          (begin (tyche-log name prop-run-start (/ (- run-end run-start) 1000) status args features) status)
-          (begin (when (file-exists? "tyche-log.json") (delete-file "tyche-log.json")) status))))
+          (begin (tyche-log name prop-run-start (/ (- run-end gen-start) 1000) status args features) status)
+           status)))
     (define (descend-shrinks trees last-failing-value)
       (cond
         [(stream-empty? trees) last-failing-value]
         [else
          (define tree (stream-first trees))
          (define value (shrink-tree-val tree))
-         (if (pass? value)
+         (if (pass? value )
              (descend-shrinks (stream-rest trees) last-failing-value)
              (descend-shrinks (shrink-tree-shrinks (stream-first trees)) value))]))
 
@@ -178,10 +191,11 @@
          (make-result c p (current-labels) (add1 test) 'timed-out)]
 
         [else
+         (define gen-start (current-inexact-milliseconds))
          (define tree (g rng (size (add1 test))))
          (define value (shrink-tree-val tree))
          (cond
-           [(pass? value)
+           [(pass? value gen-start)
             (loop (add1 test))]
 
            [else
