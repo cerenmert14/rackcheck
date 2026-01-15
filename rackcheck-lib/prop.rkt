@@ -90,7 +90,7 @@
                      )
   (config seed tests size deadline run-start tyche features))
 
-(define tyche-port (open-output-file "tyche-log.json" #:exists 'truncate))
+(define tyche-port (open-output-file "tyche-log.jsonl" #:exists 'truncate))
 
 (module+ private
   (provide (struct-out config)))
@@ -132,11 +132,11 @@
   (define tyche-args
     (hasheq
      'type "test_case"
-     'property (~v p-name)
+     'property (~a p-name)
      'run_start prop-run-start
      'status (if status "passed" "failed")
      'status_reason ""
-     'representation (~v rep)
+     'representation (~v (car rep))
      'arguments (hasheq)
      'how_generated ""
      'timing (hasheq 'time run-total)
