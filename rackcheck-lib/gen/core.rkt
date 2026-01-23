@@ -3,6 +3,7 @@
 (require racket/contract/base
          racket/random
          racket/stream
+         racket/string
          (submod "shrink-tree.rkt" private))
 
 (provide
@@ -17,6 +18,12 @@
                [exact-positive-integer?
                 pseudo-random-generator?]
                (listof any/c))]
+  [sample-with-time (->* [gen? exact-positive-integer?]
+                         [pseudo-random-generator?]
+                         (listof (cons/c real? any/c)))]
+  [quick-sample (->* [gen? exact-positive-integer?]
+                     [pseudo-random-generator?]
+                     string?)]
   [shrink (->* [gen? exact-positive-integer?]
                [pseudo-random-generator?
                 #:limit (or/c #f exact-positive-integer?)
@@ -50,6 +57,40 @@
 (define (sample g [n 10] [rng (current-pseudo-random-generator)])
   (for/list ([s (in-range n)])
     (shrink-tree-val (g rng (expt s 2)))))
+
+; jsonify takes a list of pairs, returns [{"time": <time>, "value": <value>}, ...]
+; we don't want to directly use `~v` for value here, because it prints `'(a b c)` instead of `((a b c))`
+(define (jsonify result)
+  (define (pair->json p)
+    (define time (car p))
+    (define value (cdr p))
+
+    (define (format-args args)
+      (if (list? args)
+          (format "(~a)" (string-join (map (lambda (t) (format "~v" t)) args) " "))
+          (format "~v" args)))
+
+    (format "{\"time\": \"~ams\", \"value\": \"~a\"}" time (format-args value)))
+  (if (null? result)
+      "[]"
+      (format "[~a]"
+              (string-join (map pair->json result) ", "))))
+
+
+(define (sample-with-time g n [rng (current-pseudo-random-generator)])
+  (let ([result '()])
+    (for/list ([s (in-range n)])
+      (let ([start (current-inexact-milliseconds)])
+        (let ([sample (shrink-tree-val (g rng (expt s 2)))])
+          (let ([end (current-inexact-milliseconds)])
+            (set! result
+                  (cons
+                   (cons (- end start) sample)
+                   result))))))
+    result))
+
+(define (quick-sample g n [rng (current-pseudo-random-generator)])
+  (jsonify (sample-with-time g n rng)))
 
 (define (shrink g
                 size

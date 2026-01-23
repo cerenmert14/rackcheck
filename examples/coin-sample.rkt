@@ -33,18 +33,4 @@
                     (gen:integer-in -100 (add1 MAX)))])
       (coin amt)))
 
-  (check-property
-   (make-config #:tests 10000)
-   (property ([a gen:coin]
-              [b gen:coin])
-     (define c (coin+ a b))
-     (define n (+ (coin-n a)
-                  (coin-n b)))
-     (label!
-      (cond
-        [(< (abs (- n MAX)) 3) "boundary"]
-        [(<= n MAX)            "normal"]
-        [else                  "overflow"]))
-     (if (valid-coin-amount? n)
-         (check-match c (coin (== n)))
-         (check-true c)))))
+  (displayln (quick-sample gen:coin 10)))
