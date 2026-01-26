@@ -174,15 +174,15 @@
         (if tyche
           (begin (tyche-log name prop-run-start (/ (- run-end gen-start) 1000) status args features) status)
            status)))
-    (define (descend-shrinks trees last-failing-value)
+    (define (descend-shrinks trees last-failing-value gen-start)
       (cond
         [(stream-empty? trees) last-failing-value]
         [else
          (define tree (stream-first trees))
          (define value (shrink-tree-val tree))
-         (if (pass? value )
-             (descend-shrinks (stream-rest trees) last-failing-value)
-             (descend-shrinks (shrink-tree-shrinks (stream-first trees)) value))]))
+         (if (pass? value gen-start)
+             (descend-shrinks (stream-rest trees) last-failing-value gen-start)
+             (descend-shrinks (shrink-tree-shrinks (stream-first trees)) value gen-start))]))
 
     (random-seed seed)
     (define start (current-inexact-milliseconds))
@@ -206,7 +206,7 @@
             (define start/shrink (current-inexact-milliseconds))
             (define shrunk?
               (parameterize ([current-labels #f])
-                (descend-shrinks (shrink-tree-shrinks tree) #f)))
+                (descend-shrinks (shrink-tree-shrinks tree) #f gen-start)))
             (define end/shrink (current-inexact-milliseconds))
             (make-result c p (current-labels) (add1 test) 'falsified value shrunk? exn? (- end/shrink start/shrink) (- start/shrink start))])]))))
 
