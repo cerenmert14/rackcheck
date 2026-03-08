@@ -22,8 +22,8 @@
                          [pseudo-random-generator?]
                          (listof (cons/c real? any/c)))]
   [quick-sample (->* [gen? exact-positive-integer?]
-                     [pseudo-random-generator?]
-                     string?)]
+                      [pseudo-random-generator?]
+                      string?)]
   [shrink (->* [gen? exact-positive-integer?]
                [pseudo-random-generator?
                 #:limit (or/c #f exact-positive-integer?)
