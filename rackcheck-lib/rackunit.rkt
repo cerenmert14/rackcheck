@@ -52,7 +52,7 @@
      (define message
        (with-output-to-string
          (lambda ()
-           (pretty-printf (pretty-format "{ \"time\": \"~as\", \"shrink-time\": \"~as\", \"foundbug\": true, \"passed\": ~a, \"counterexample\": ~v, \"shrinked-counterexample\": ~v}" (/ (result-time res) 1000) (/ (result-time/smallest res) 1000) (result-tests-run res) (args-to-string (result-args res)) (args-to-string (result-args/smallest res))))
+           (pretty-printf (pretty-format "{ \"time\": \"~as\", \"shrink-time\": \"~as\", \"foundbug\": true, \"tests\": ~a, \"counterexample\": ~v, \"shrinked-counterexample\": ~v}" (/ (result-time res) 1000) (/ (result-time/smallest res) 1000) (result-tests-run res) (args-to-string (result-args res)) (args-to-string (result-args/smallest res))))
            (when (and (result-e res) (not (exn:test:check? (result-e res))))
              (parameterize ([current-error-port (current-output-port)])
                (newline)
