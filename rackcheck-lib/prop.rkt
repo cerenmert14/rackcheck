@@ -86,8 +86,8 @@
                      #:tests [tests 100]
                      #:size [size (lambda (n)
                                     (inexact->exact (round (log n 2))))]
-                     #:deadline [deadline (+ (current-inexact-milliseconds) (* 60 1000))]
-                     #:prop-run-start [run-start (current-inexact-milliseconds)]
+                     #:deadline [deadline (+ (current-inexact-monotonic-milliseconds) (* 60 1000))]
+                     #:prop-run-start [run-start (current-inexact-monotonic-milliseconds)]
                      #:tyche [tyche #f]
                      #:features [features (list)]
                      )
@@ -163,17 +163,18 @@
     (define (pass? args gen-start)
       (let-values 
         ([(run-start status run-end) 
-            (values (current-inexact-milliseconds)
+            (values (current-inexact-monotonic-milliseconds)
                     (with-handlers ([(lambda (_) #t)
                        (lambda (the-exn)
                          (begin0 #f
                                  (set! exn? the-exn)))])
                       (parameterize ([current-pseudo-random-generator caller-rng])
                       (apply f args))) 
-                    (current-inexact-milliseconds))])
+                    (current-inexact-monotonic-milliseconds))])
         (if tyche
           (begin (tyche-log name prop-run-start (/ (- run-end gen-start) 1000) status args features) status)
            status)))
+
     (define (descend-shrinks trees last-failing-value gen-start)
       (cond
         [(stream-empty? trees) last-failing-value]
@@ -185,17 +186,17 @@
              (descend-shrinks (shrink-tree-shrinks (stream-first trees)) value gen-start))]))
 
     (random-seed seed)
-    (define start (current-inexact-milliseconds))
+    (define start (current-inexact-monotonic-milliseconds))
     (let loop ([test 0])
       (cond
         [(= test tests)
          (make-result c p (current-labels) test 'passed)]
 
-        [(>= (current-inexact-milliseconds) deadline)
+        [(>= (current-inexact-monotonic-milliseconds) deadline)
          (make-result c p (current-labels) (add1 test) 'timed-out)]
 
         [else
-         (define gen-start (current-inexact-milliseconds))
+         (define gen-start (current-inexact-monotonic-milliseconds))
          (define tree (g rng (size (add1 test))))
          (define value (shrink-tree-val tree))
          (cond
@@ -203,12 +204,12 @@
             (loop (add1 test))]
 
            [else
-            (define start/shrink (current-inexact-milliseconds))
+            (define start/shrink (current-inexact-monotonic-milliseconds))
             (define shrunk?
               (parameterize ([current-labels #f])
                 (descend-shrinks (shrink-tree-shrinks tree) #f gen-start)))
-            (define end/shrink (current-inexact-milliseconds))
-            (make-result c p (current-labels) (add1 test) 'falsified value shrunk? exn? (- end/shrink start/shrink) (- start/shrink start))])]))))
+            (define end/shrink (current-inexact-monotonic-milliseconds))
+            (make-result c p (current-labels) (add1 test) 'falsified value shrunk? exn? (- start/shrink start) (- end/shrink start/shrink))])]))))
 
          (module+ private
            (provide

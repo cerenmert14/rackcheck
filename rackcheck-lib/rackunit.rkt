@@ -52,7 +52,7 @@
      (define message
        (with-output-to-string
          (lambda ()
-           (pretty-printf (pretty-format "{ \"search-time\": \"~as\", \"shrink-time\": \"~as\", \"foundbug\": true, \"passed\": ~a, \"counterexample\": ~v, \"shrinked-counterexample\": ~v}" (/ (result-time res) 1000) (/ (result-time/smallest res) 1000) (result-tests-run res) (args-to-string (result-args res)) (args-to-string (result-args/smallest res))))
+           (pretty-printf (pretty-format "{ \"time\": \"~as\", \"shrink-time\": \"~as\", \"foundbug\": true, \"passed\": ~a, \"counterexample\": ~v, \"shrinked-counterexample\": ~v}" (/ (result-time res) 1000) (/ (result-time/smallest res) 1000) (result-tests-run res) (args-to-string (result-args res)) (args-to-string (result-args/smallest res))))
            (when (and (result-e res) (not (exn:test:check? (result-e res))))
              (parameterize ([current-error-port (current-output-port)])
                (newline)
@@ -108,6 +108,6 @@
              (list
               (make-check-location location)
               (make-check-info 'name (prop-name p))
-              (make-check-info 'seessd (config-seed conf)))
+              (make-check-info 'seed (config-seed conf)))
            (lambda ()
              (check-property p conf))))]))
