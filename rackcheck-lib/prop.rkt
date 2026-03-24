@@ -86,8 +86,8 @@
                      #:tests [tests 100]
                      #:size [size (lambda (n)
                                     (inexact->exact (round (log n 2))))]
-                     #:deadline [deadline (+ (current-inexact-monotonic-milliseconds) (* 60 1000))]
-                     #:prop-run-start [run-start (current-inexact-monotonic-milliseconds)]
+                     #:deadline [deadline (+ (current-inexact-milliseconds) (* 60 1000))]
+                     #:prop-run-start [run-start (current-inexact-milliseconds)]
                      #:tyche [tyche #f]
                      #:features [features (list)]
                      )
