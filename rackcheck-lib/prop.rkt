@@ -63,7 +63,7 @@
 
 ;; config ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define features-funcs? (-> any/c any/c))
+(define features-funcs? (->* () #:rest (listof any/c) any/c))
 (define features? (listof (cons/c string? features-funcs?)))
 
 (provide
